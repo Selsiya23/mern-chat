@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import axios from "axios";
 
-axios.defaults.baseURL =
-  process.env.REACT_APP_SERVER_URL || "http://localhost:5000";
+axios.defaults.baseURL = "https://mern-chat-api-ojl3.onrender.com";
 
 const AuthContext = createContext(null);
 
