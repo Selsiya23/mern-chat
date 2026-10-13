@@ -12,20 +12,25 @@ const messageRoutes = require("./routes/messages");
 const { authenticateSocket } = require("./middleware/auth");
 const socketHandler = require("./socket/socketHandler");
 
-const app = express();
-const server = http.createServer(app);
+
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://mern-chat-gules.vercel.app",
+];
+
+const corsOptions = {
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  credentials: true,
+};
 
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true,
-  },
+  cors: corsOptions,
 });
 
-// Middleware
-app.use(cors({ origin: process.env.CLIENT_URL || "http://localhost:3000", credentials: true }));
+app.use(cors(corsOptions));
 app.use(express.json());
+
 
 // Routes
 app.use("/api/auth", authRoutes);
