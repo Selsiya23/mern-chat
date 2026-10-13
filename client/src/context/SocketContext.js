@@ -1,8 +1,19 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from "react";
+
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { io } from "socket.io-client";
 import { useAuth } from "./AuthContext";
 
 const SocketContext = createContext(null);
+
+const SERVER_URL =
+  process.env.REACT_APP_SERVER_URL ||
+  "https://mern-chat-api-ojl3.onrender.com";
 
 export const SocketProvider = ({ children }) => {
   const { token, user } = useAuth();
@@ -11,47 +22,59 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (!token || !user) {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-        setConnected(false);
-      }
+      setConnected(false);
       return;
     }
 
-    const socket = io(process.env.REACT_APP_SERVER_URL || "http://localhost:5000", {
+    const socket = io(SERVER_URL, {
       auth: { token },
+      transports: ["websocket", "polling"],
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: Infinity,
       reconnectionDelay: 1000,
-    });
-
-    socket.on("connect", () => {
-      console.log("✅ Socket connected");
-      setConnected(true);
-    });
-
-    socket.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-      setConnected(false);
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err.message);
-      setConnected(false);
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
     socketRef.current = socket;
 
+    socket.on("connect", () => {
+      console.log("✅ Socket connected:", socket.id);
+      setConnected(true);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("❌ Socket disconnected:", reason);
+      setConnected(false);
+    });
+
+    socket.on("connect_error", (error) => {
+      console.error("❌ Socket connection error:", error.message);
+      setConnected(false);
+    });
+
+    socket.on("error", (error) => {
+      console.error("❌ Server socket error:", error);
+    });
+
     return () => {
+      console.log("🔌 Closing socket connection");
+      socket.removeAllListeners();
       socket.disconnect();
-      socketRef.current = null;
+
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
+
+      setConnected(false);
     };
   }, [token, user]);
 
   const emit = (event, data) => {
     if (socketRef.current?.connected) {
       socketRef.current.emit(event, data);
+    } else {
+      console.error("Cannot emit event; socket is disconnected:", event);
     }
   };
 
@@ -64,7 +87,15 @@ export const SocketProvider = ({ children }) => {
   };
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, connected, emit, on, off }}>
+    <SocketContext.Provider
+      value={{
+        socket: socketRef.current,
+        connected,
+        emit,
+        on,
+        off,
+      }}
+    >
       {children}
     </SocketContext.Provider>
   );
@@ -72,6 +103,10 @@ export const SocketProvider = ({ children }) => {
 
 export const useSocket = () => {
   const ctx = useContext(SocketContext);
-  if (!ctx) throw new Error("useSocket must be used within SocketProvider");
+
+  if (!ctx) {
+    throw new Error("useSocket must be used within SocketProvider");
+  }
+
   return ctx;
 };

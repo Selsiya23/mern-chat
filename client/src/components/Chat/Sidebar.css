@@ -198,3 +198,56 @@
 .modal-actions button.primary { background: #5865f2; }
 .modal-actions button:hover { filter: brightness(1.1); }
 .modal-actions button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.discover-button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #3f4655;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.discover-button:hover {
+  background: rgba(128, 128, 128, 0.12);
+}
+
+.discover-modal {
+  width: min(460px, 92vw);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.discover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.discover-room {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid #454b59;
+  border-radius: 8px;
+}
+
+.discover-room .room-item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.discover-room .room-name,
+.discover-room .room-preview {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.room-error {
+  color: #ed4245;
+  margin: 10px 0;
+}
