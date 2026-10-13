@@ -21,28 +21,47 @@ module.exports = (io) => {
 
     // ── MESSAGES ──────────────────────────────────────────────
 
-    socket.on("message:send", async ({ roomId, content, type = "text" }) => {
-      try {
-        const room = await Room.findOne({ _id: roomId, members: user._id });
-        if (!room) return socket.emit("error", { message: "Access denied" });
 
-        const message = await Message.create({
-          content,
-          sender: user._id,
-          room: roomId,
-          type,
-        });
-
-        await message.populate("sender", "username avatar");
-
-        // Update room's last message
-        await Room.findByIdAndUpdate(roomId, { lastMessage: message._id });
-
-        io.to(roomId).emit("message:new", message);
-      } catch (error) {
-        socket.emit("error", { message: "Failed to send message" });
-      }
+socket.on("message:send", async ({ roomId, content, type = "text" }) => {
+  try {
+    console.log("Message send:", {
+      username: user.username,
+      userId: user._id.toString(),
+      roomId,
+      content,
     });
+
+    const room = await Room.findOne({
+      _id: roomId,
+      members: user._id,
+    });
+
+    if (!room) {
+      console.log("Access denied:", {
+        username: user.username,
+        userId: user._id.toString(),
+        roomId,
+      });
+      return socket.emit("error", { message: "Access denied" });
+    }
+
+    const message = await Message.create({
+      content,
+      sender: user._id,
+      room: roomId,
+      type,
+    });
+
+    await message.populate("sender", "username avatar");
+    await Room.findByIdAndUpdate(roomId, { lastMessage: message._id });
+
+    io.to(roomId).emit("message:new", message);
+  } catch (error) {
+    console.error("Message send error:", error);
+    socket.emit("error", { message: "Failed to send message" });
+  }
+});
+
 
     socket.on("message:edit", async ({ messageId, content }) => {
       try {
