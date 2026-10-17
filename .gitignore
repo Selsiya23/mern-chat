@@ -1,4 +1,10 @@
+
 server/.env
-client/node_modules/
 server/node_modules/
+client/node_modules/
 .env
+
+server/middleware/*.backup
+server/routes/*.backup
+server/socket/*.backup
+client/build/

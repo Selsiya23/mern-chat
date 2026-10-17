@@ -120,6 +120,21 @@ export const ChatProvider = ({ children }) => {
     [fetchPublicRooms]
   );
 
+    // Open or create a direct chat with another allowed user
+  const openDirectChat = useCallback(
+    async (userId) => {
+      const { data } = await axios.get(`/api/rooms/direct/${userId}`);
+
+      setRooms((prev) => [
+        data,
+        ...prev.filter((room) => room._id !== data._id),
+      ]);
+
+      return data;
+    },
+    []
+  );
+
   // Join a public room
   const joinPublicRoom = useCallback(
     async (roomId) => {
@@ -258,6 +273,7 @@ export const ChatProvider = ({ children }) => {
         onlineUsers,
         loading,
         joinRoom,
+        openDirectChat,
         sendMessage,
         createRoom,
         joinPublicRoom,

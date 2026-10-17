@@ -1,111 +1,114 @@
+
 const express = require("express");
+const mongoose = require("mongoose");
 const Room = require("../models/Room");
-const Message = require("../models/Message");
+const User = require("../models/User");
 const { authenticate } = require("../middleware/auth");
+const { isAllowedUser } = require("../config/allowedAccounts");
 
 const router = express.Router();
 
-// GET /api/rooms — get all rooms for current user
+// GET /api/rooms - current user's valid private direct rooms
 router.get("/", authenticate, async (req, res) => {
   try {
-    const rooms = await Room.find({ members: req.user._id })
-      .populate("members", "username avatar status")
+    const rooms = await Room.find({
+      type: "direct",
+      isPrivate: true,
+      members: req.user._id,
+    })
+      .populate("members", "username avatar status email")
       .populate("admin", "username avatar")
-      .populate({ path: "lastMessage", populate: { path: "sender", select: "username" } })
+      .populate({
+        path: "lastMessage",
+        populate: { path: "sender", select: "username" },
+      })
       .sort({ updatedAt: -1 });
 
-    res.json(rooms);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-// GET /api/rooms/public — get all public rooms
-router.get("/public", authenticate, async (req, res) => {
-  try {
-    const rooms = await Room.find({ isPrivate: false, type: "group" })
-      .populate("members", "username avatar status")
-      .populate("admin", "username avatar")
-      .sort({ createdAt: -1 });
-
-    res.json(rooms);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-// POST /api/rooms — create a new room
-router.post("/", authenticate, async (req, res) => {
-  try {
-    const { name, description, isPrivate } = req.body;
-    if (!name) return res.status(400).json({ message: "Room name required" });
-
-    const room = await Room.create({
-      name,
-      description,
-      isPrivate: isPrivate || false,
-      admin: req.user._id,
-      members: [req.user._id],
-    });
-
-    await room.populate("members", "username avatar status");
-    await room.populate("admin", "username avatar");
-
-    res.status(201).json(room);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-// POST /api/rooms/:id/join — join a room
-router.post("/:id/join", authenticate, async (req, res) => {
-  try {
-    const room = await Room.findById(req.params.id);
-    if (!room) return res.status(404).json({ message: "Room not found" });
-
-    if (room.members.includes(req.user._id)) {
-      return res.status(400).json({ message: "Already a member" });
-    }
-
-    room.members.push(req.user._id);
-    await room.save();
-
-    await room.populate("members", "username avatar status");
-    res.json(room);
-  } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
-  }
-});
-
-// POST /api/rooms/:id/leave — leave a room
-router.post("/:id/leave", authenticate, async (req, res) => {
-  try {
-    const room = await Room.findById(req.params.id);
-    if (!room) return res.status(404).json({ message: "Room not found" });
-
-    room.members = room.members.filter(
-      (m) => m.toString() !== req.user._id.toString()
+    const safeRooms = rooms.filter(
+      (room) =>
+        room.members.length === 2 &&
+        room.members.every((member) => isAllowedUser(member))
     );
-    await room.save();
 
-    res.json({ message: "Left room successfully" });
+    return res.json(safeRooms);
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Get rooms error:", error.message);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 
-// GET /api/rooms/direct/:userId — get or create a DM room
+// Public/group rooms are disabled
+router.get("/public", authenticate, (req, res) => {
+  return res.json([]);
+});
+
+// Group room creation is disabled
+router.post("/", authenticate, (req, res) => {
+  return res.status(403).json({
+    message: "Only private one-to-one chats are allowed",
+  });
+});
+
+// Joining rooms manually is disabled
+router.post("/:id/join", authenticate, (req, res) => {
+  return res.status(403).json({
+    message: "Joining rooms manually is disabled",
+  });
+});
+
+// Leaving a direct room is disabled to protect chat history
+router.post("/:id/leave", authenticate, (req, res) => {
+  return res.status(403).json({
+    message: "Leaving direct chats is disabled",
+  });
+});
+
+// GET /api/rooms/direct/:userId - find or create the allowed direct chat
 router.get("/direct/:userId", authenticate, async (req, res) => {
   try {
     const otherUserId = req.params.userId;
-    const members = [req.user._id, otherUserId].sort();
+
+    if (!mongoose.Types.ObjectId.isValid(otherUserId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    if (otherUserId === req.user._id.toString()) {
+      return res.status(400).json({
+        message: "You cannot create a chat with yourself",
+      });
+    }
+
+    const otherUser = await User.findById(otherUserId).select(
+      "username email avatar status"
+    );
+
+    if (!otherUser || !isAllowedUser(otherUser)) {
+      return res.status(403).json({
+        message: "This chat account is not allowed",
+      });
+    }
+
+    const members = [req.user._id, otherUser._id].sort((a, b) =>
+      a.toString().localeCompare(b.toString())
+    );
 
     let room = await Room.findOne({
       type: "direct",
+      isPrivate: true,
       members: { $all: members, $size: 2 },
-    }).populate("members", "username avatar status");
+    }).populate("members", "username avatar status email");
 
-    if (!room) {
+    if (room) {
+      const validRoom =
+        room.members.length === 2 &&
+        room.members.every((member) => isAllowedUser(member));
+
+      if (!validRoom) {
+        return res.status(403).json({
+          message: "This chat room is not allowed",
+        });
+      }
+    } else {
       room = await Room.create({
         name: "Direct Message",
         type: "direct",
@@ -113,12 +116,14 @@ router.get("/direct/:userId", authenticate, async (req, res) => {
         admin: req.user._id,
         isPrivate: true,
       });
-      await room.populate("members", "username avatar status");
+
+      await room.populate("members", "username avatar status email");
     }
 
-    res.json(room);
+    return res.json(room);
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Direct room error:", error.message);
+    return res.status(500).json({ message: "Server error" });
   }
 });
 

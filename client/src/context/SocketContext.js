@@ -13,7 +13,7 @@ const SocketContext = createContext(null);
 
 const SERVER_URL =
   process.env.REACT_APP_SERVER_URL ||
-  "https://mern-chat-api-ojl3.onrender.com";
+  "http://localhost:5000";
 
 export const SocketProvider = ({ children }) => {
   const { token, user } = useAuth();

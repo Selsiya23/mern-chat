@@ -55,11 +55,12 @@ mongoose
   .connect(process.env.MONGO_URI || "mongodb://localhost:27017/mern-chat")
   .then(() => {
     console.log("✅ MongoDB connected");
+    console.log("MongoDB database:", mongoose.connection.name);
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
   })
-  .catch((err) => {
+    .catch((err) => {
     console.error("❌ MongoDB connection error:", err);
     process.exit(1);
   });

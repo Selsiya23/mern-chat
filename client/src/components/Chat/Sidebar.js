@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useChat } from "../../context/ChatContext";
 import { useSocket } from "../../context/SocketContext";
 import "./Sidebar.css";
+import axios from "axios";
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
@@ -17,6 +18,7 @@ export default function Sidebar() {
     joinPublicRoom,
     fetchRooms,
     fetchPublicRooms,
+    openDirectChat,
   } = useChat();
 
   const { connected } = useSocket();
@@ -31,6 +33,38 @@ export default function Sidebar() {
   const [creating, setCreating] = useState(false);
   const [joiningId, setJoiningId] = useState(null);
   const [error, setError] = useState("");
+
+  const handleOpenDirectChat = async () => {
+    setError("");
+
+    try {
+      const otherEmail =
+        user?.email?.toLowerCase() === "jarvis@test.com"
+          ? "zap@test.com"
+          : "jarvis@test.com";
+
+      const { data: users } = await axios.get(
+        `/api/users/search?q=${encodeURIComponent(otherEmail)}`
+      );
+
+      const otherUser = users.find(
+        (item) => item.email?.toLowerCase() === otherEmail
+      );
+
+      if (!otherUser) {
+        setError("Other allowed account not found.");
+        return;
+      }
+
+      const room = await openDirectChat(otherUser._id);
+      await joinRoom(room);
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Unable to open direct chat."
+      );
+    }
+  };
+
 
   const getAvatar = (name) => {
     const colors = [
@@ -184,6 +218,12 @@ export default function Sidebar() {
         <div className="room-section">
           <div className="section-header">
             <span>Direct messages</span>
+            <button
+              className="discover-button"
+              onClick={handleOpenDirectChat}
+            >
+              Open {user?.email?.toLowerCase() === "jarvis@test.com" ? "Zap" : "Jarvis"} chat
+            </button>
           </div>
 
           {directRooms.length > 0 ? (
@@ -201,6 +241,7 @@ export default function Sidebar() {
           ) : (
             <p className="empty-rooms">No direct messages yet.</p>
           )}
+                    {error && <p className="room-error">{error}</p>}
         </div>
 
         <div className="room-section">
